@@ -36,4 +36,3 @@ go.work
 
 # Project-specific files
 server/tmp/
-server/
