@@ -1,7 +1,7 @@
 package game_test
 
 import (
-	"project-s/game"
+	"project-s/internal/classes/game"
 	"testing"
 )
 

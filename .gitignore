@@ -35,4 +35,5 @@ go.work
 .DS_Store
 
 # Project-specific files
-server/tmp/
+tmp/
+cmd/server/tmp/
