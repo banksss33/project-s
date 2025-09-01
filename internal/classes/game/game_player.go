@@ -6,9 +6,33 @@ const StatusConnected = "CONNECTED"
 const StatusDisconnected = "DISCONNECTED"
 
 type Player struct {
+	UserID           string
+	Roles            string
 	ConnectionStatus string // CONNECTED | DISCONNECTED
 	Conn             *websocket.Conn
 	Score            int // Score
+}
+
+func NewPlayer(userID string, conn *websocket.Conn) *Player {
+	return &Player{
+		UserID:           userID,
+		ConnectionStatus: StatusConnected,
+		Conn:             conn,
+		Score:            0,
+	}
+}
+
+func (p *Player) Reconnect(reconnect *websocket.Conn) {
+	p.ConnectionStatus = "CONNECTED"
+	p.Conn = reconnect
+}
+
+func (p *Player) Disconnect() {
+	p.ConnectionStatus = "DISCONNECTED"
+	if p.Conn != nil {
+		p.Conn.Close()
+		p.Conn = nil
+	}
 }
 
 func (p *Player) WritePump(message []byte) {
