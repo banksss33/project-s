@@ -1,6 +1,11 @@
 package game
 
-import "github.com/gofiber/contrib/websocket"
+import (
+	"encoding/json"
+	"project-s/internal/types"
+
+	"github.com/gofiber/contrib/websocket"
+)
 
 const StatusConnected = "CONNECTED"
 const StatusDisconnected = "DISCONNECTED"
@@ -35,6 +40,22 @@ func (p *Player) Disconnect() {
 	}
 }
 
-func (p *Player) WritePump(message []byte) {
-	p.Conn.WriteMessage(websocket.TextMessage, message)
+func (p *Player) Listener(ReceiveEvent chan types.ActionEvent) {
+	defer p.Disconnect()
+	for {
+		_, msg, err := p.Conn.ReadMessage()
+		if err != nil {
+			break
+		}
+
+		var clientAction types.ClientAction
+		json.Unmarshal(msg, &clientAction)
+		ActionEvent := types.ActionEvent{
+			PlayerConn:   p.Conn,
+			ClientAction: clientAction,
+		}
+
+		ReceiveEvent <- ActionEvent
+
+	}
 }

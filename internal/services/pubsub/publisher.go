@@ -1,6 +1,9 @@
 package pubsub
 
-import "sync"
+import (
+	"project-s/internal/types"
+	"sync"
+)
 
 type Publisher struct {
 	Subscribers map[string]map[*Subscriber]bool
@@ -13,11 +16,11 @@ func NewPublisher() *Publisher {
 	}
 }
 
-func (p *Publisher) Notify(topic string) {
+func (p *Publisher) Notify(topic string, actionEvent types.ActionEvent) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	for subscriber := range p.Subscribers[topic] {
-		subscriber.Signal <- topic
+		subscriber.Event <- actionEvent
 	}
 }

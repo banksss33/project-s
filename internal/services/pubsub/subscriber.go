@@ -1,21 +1,24 @@
 package pubsub
 
-import "sync"
+import (
+	"project-s/internal/types"
+	"sync"
+)
 
 type Subscriber struct {
 	SubscribeTo map[*Publisher]map[string]bool //Key: Pub Value: map[ Key: subTopic value: bool ]
-	Signal      chan string
+	Event       chan types.ActionEvent
 	mu          sync.RWMutex
 }
 
 func NewSubscriber() *Subscriber {
 	return &Subscriber{
 		SubscribeTo: make(map[*Publisher]map[string]bool),
-		Signal:      make(chan string, 5),
+		Event:       make(chan types.ActionEvent, 5),
 	}
 }
 
-func (sub *Subscriber) Subscribe(publisher *Publisher, topic string, callback func(msg string)) {
+func (sub *Subscriber) Subscribe(publisher *Publisher, topic string, callback func(actionEvent types.ActionEvent)) {
 	sub.mu.Lock()
 	defer sub.mu.Unlock()
 
@@ -38,8 +41,8 @@ func (sub *Subscriber) Subscribe(publisher *Publisher, topic string, callback fu
 	sub.SubscribeTo[publisher][topic] = true
 
 	go func() {
-		for i := range sub.Signal {
-			callback(i)
+		for e := range sub.Event {
+			callback(e)
 		}
 	}()
 
@@ -60,6 +63,6 @@ func (sub *Subscriber) Unsubscribe(topic string, publisher *Publisher) {
 	}
 
 	if len(sub.SubscribeTo) == 0 {
-		close(sub.Signal)
+		close(sub.Event)
 	}
 }
