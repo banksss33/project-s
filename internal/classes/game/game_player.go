@@ -28,19 +28,19 @@ func NewPlayer(userID string, conn *websocket.Conn) *Player {
 }
 
 func (p *Player) Reconnect(reconnect *websocket.Conn) {
-	p.ConnectionStatus = "CONNECTED"
+	p.ConnectionStatus = StatusConnected
 	p.Conn = reconnect
 }
 
 func (p *Player) Disconnect() {
-	p.ConnectionStatus = "DISCONNECTED"
+	p.ConnectionStatus = StatusDisconnected
 	if p.Conn != nil {
 		p.Conn.Close()
 		p.Conn = nil
 	}
 }
 
-func (p *Player) Listener(ReceiveEvent chan types.ActionEvent) {
+func (p *Player) CreateEventListener(ReceiveEvent chan types.ActionEvent) {
 	defer p.Disconnect()
 	for {
 		_, msg, err := p.Conn.ReadMessage()
@@ -56,6 +56,5 @@ func (p *Player) Listener(ReceiveEvent chan types.ActionEvent) {
 		}
 
 		ReceiveEvent <- ActionEvent
-
 	}
 }

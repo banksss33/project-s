@@ -16,7 +16,7 @@ func TestIsRoomEmpty(t *testing.T) {
 
 	t.Run("room with one connected player should not be empty", func(t *testing.T) {
 		room := game.NewGameRoom()
-		room.AddPlayer(game.NewPlayer("p1", nil))
+		room.AddPlayer("p1", nil)
 
 		if room.IsRoomEmpty() {
 			t.Error("Expected room with one player to not be empty")
@@ -25,7 +25,7 @@ func TestIsRoomEmpty(t *testing.T) {
 
 	t.Run("room after all players disconnect should be empty", func(t *testing.T) {
 		room := game.NewGameRoom()
-		room.AddPlayer(game.NewPlayer("p1", nil))
+		room.AddPlayer("p1", nil)
 		room.PlayerDisconnected("p1")
 
 		if !room.IsRoomEmpty() {
@@ -36,8 +36,8 @@ func TestIsRoomEmpty(t *testing.T) {
 	t.Run("room with two player should not be empty", func(t *testing.T) {
 		room := game.NewGameRoom()
 
-		room.AddPlayer(game.NewPlayer("p1", nil))
-		room.AddPlayer(game.NewPlayer("p2", nil))
+		room.AddPlayer("p1", nil)
+		room.AddPlayer("p2", nil)
 
 		if room.IsRoomEmpty() {
 			t.Error("Expected room with two players to not be empty")
@@ -47,8 +47,8 @@ func TestIsRoomEmpty(t *testing.T) {
 	t.Run("room with one player after player disconnect should not be empty", func(t *testing.T) {
 		room := game.NewGameRoom()
 
-		room.AddPlayer(game.NewPlayer("p1", nil))
-		room.AddPlayer(game.NewPlayer("p2", nil))
+		room.AddPlayer("p1", nil)
+		room.AddPlayer("p2", nil)
 
 		room.PlayerDisconnected("p1")
 
@@ -59,8 +59,8 @@ func TestIsRoomEmpty(t *testing.T) {
 
 	t.Run("room with two player after all player disconnected should be empty", func(t *testing.T) {
 		room := game.NewGameRoom()
-		room.AddPlayer(game.NewPlayer("p1", nil))
-		room.AddPlayer(game.NewPlayer("p2", nil))
+		room.AddPlayer("p1", nil)
+		room.AddPlayer("p2", nil)
 
 		room.PlayerDisconnected("p1")
 		room.PlayerDisconnected("p2")

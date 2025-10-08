@@ -8,43 +8,46 @@ import (
 )
 
 type GameRoom struct {
-	PlayerList   map[string]*Player // Key: userID from Discord, Value: *Player
-	Publish      *pubsub.Publisher
-	ReceiveEvent chan types.ActionEvent
+	PlayerList    map[string]*Player // Key: userID from Discord, Value: *Player
+	Publish       *pubsub.Publisher
+	EventReceiver chan types.ActionEvent
 	GameState
 }
 
 // create new game room Constructor
 func NewGameRoom() *GameRoom {
 	newRoom := &GameRoom{
-		PlayerList:   make(map[string]*Player),
-		Publish:      pubsub.NewPublisher(),
-		ReceiveEvent: make(chan types.ActionEvent, 5),
+		PlayerList:    make(map[string]*Player),
+		Publish:       pubsub.NewPublisher(),
+		EventReceiver: make(chan types.ActionEvent, 5),
 	}
 
 	return newRoom
 }
 
 func (gr *GameRoom) EventHandler() {
-	for e := range gr.ReceiveEvent {
-		go gr.Publish.Notify(e.ActionName, e)
+	for event := range gr.EventReceiver {
+		go gr.Publish.Notify(event.ActionName, event)
 	}
 }
 
 // add new player to game room
-func (gr *GameRoom) AddPlayer(newPlayer *Player) {
-	gr.PlayerList[newPlayer.UserID] = newPlayer
+func (gr *GameRoom) AddPlayer(userID string, conn *websocket.Conn) {
+	var player *Player = NewPlayer(userID, conn)
+	go player.CreateEventListener(gr.EventReceiver)
+	gr.PlayerList[player.UserID] = player
 }
 
 // use when player reconnected
 func (gr *GameRoom) PlayerReconnected(userID string, newConn *websocket.Conn) {
-	reconnectedPlayer := gr.PlayerList[userID]
+	var reconnectedPlayer *Player = gr.PlayerList[userID]
+	go reconnectedPlayer.CreateEventListener(gr.EventReceiver)
 	reconnectedPlayer.Reconnect(newConn)
 }
 
 // use when player disconnected
 func (gr *GameRoom) PlayerDisconnected(userID string) {
-	disconnectedPlayer := gr.PlayerList[userID]
+	var disconnectedPlayer *Player = gr.PlayerList[userID]
 	disconnectedPlayer.Disconnect()
 }
 
