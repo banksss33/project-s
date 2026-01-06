@@ -1,7 +1,6 @@
 package game
 
 import (
-	"encoding/json"
 	"project-s/internal/types"
 
 	"github.com/gofiber/contrib/websocket"
@@ -40,21 +39,19 @@ func (p *Player) Disconnect() {
 	}
 }
 
-func (p *Player) CreateEventListener(ReceiveEvent chan types.ActionEvent) {
+func (p *Player) Read(eventReceiver chan<- types.ActionEvent) {
 	defer p.Disconnect()
 	for {
-		_, msg, err := p.Conn.ReadMessage()
-		if err != nil {
+		var clientAction types.ActionEvent
+
+		if err := p.Conn.ReadJSON(&clientAction); err != nil {
 			break
 		}
 
-		var clientAction types.ClientAction
-		json.Unmarshal(msg, &clientAction)
-		ActionEvent := types.ActionEvent{
-			PlayerConn:   p.Conn,
-			ClientAction: clientAction,
-		}
-
-		ReceiveEvent <- ActionEvent
+		eventReceiver <- clientAction
 	}
+}
+
+func (p *Player) Send() {
+
 }

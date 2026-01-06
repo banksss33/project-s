@@ -34,14 +34,14 @@ func (gr *GameRoom) EventHandler() {
 // add new player to game room
 func (gr *GameRoom) AddPlayer(userID string, conn *websocket.Conn) {
 	var player *Player = NewPlayer(userID, conn)
-	go player.CreateEventListener(gr.EventReceiver)
+	go player.Read(gr.EventReceiver)
 	gr.PlayerList[player.UserID] = player
 }
 
 // use when player reconnected
 func (gr *GameRoom) PlayerReconnected(userID string, newConn *websocket.Conn) {
 	var reconnectedPlayer *Player = gr.PlayerList[userID]
-	go reconnectedPlayer.CreateEventListener(gr.EventReceiver)
+	go reconnectedPlayer.Read(gr.EventReceiver)
 	reconnectedPlayer.Reconnect(newConn)
 }
 

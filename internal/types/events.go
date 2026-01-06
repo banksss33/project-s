@@ -15,3 +15,7 @@ type ActionEvent struct {
 	PlayerConn *websocket.Conn
 	ClientAction
 }
+
+type StatePayload struct {
+	SetState string `json:"set_state"`
+}

@@ -1,15 +1,12 @@
 package game
 
-import "encoding/json"
-
-type Action struct {
-	ActionName    string
-	ActionPayload json.RawMessage
-}
+import (
+	"encoding/json"
+	"project-s/internal/types"
+)
 
 type State interface {
-	GetAction(Action) func(json.RawMessage)
-	SetState(State)
+	GetStateName(types.ActionEvent)
 }
 
 // TimeLeft  int
@@ -21,18 +18,25 @@ type GameState struct {
 	currentState State
 }
 
-func (gs *GameState) SetState(stateName State) {
-	gs.currentState = stateName
+func (gs *GameState) SetState(payload json.RawMessage) {
+	State := map[string]State{
+		"LOBBY": &LobbyState{},
+	}
+
+	var payloadData types.StatePayload
+	json.Unmarshal(payload, &payloadData)
+
+	gs.currentState = State[payloadData.SetState]
 }
 
 type LobbyState struct {
 	GameState
 }
 
-func (l *LobbyState) GetStateName() {
+func (l *LobbyState) GetStateName(event types.ActionEvent) {
 
 }
 
-func (l *LobbyState) GetAction(p0 Action) func(json.RawMessage) {
-	panic("TODO: Implement")
+func (l *LobbyState) GetPlayerList(event types.ActionEvent) {
+
 }
