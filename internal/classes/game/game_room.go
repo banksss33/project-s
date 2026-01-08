@@ -25,24 +25,22 @@ func NewGameRoom() *GameRoom {
 	return newRoom
 }
 
-func (gr *GameRoom) EventHandler() {
-	for event := range gr.EventReceiver {
-		go gr.Publish.Notify(event.ActionName, event)
-	}
-}
-
 // add new player to game room
 func (gr *GameRoom) AddPlayer(userID string, conn *websocket.Conn) {
 	var player *Player = NewPlayer(userID, conn)
-	go player.Read(gr.EventReceiver)
 	gr.PlayerList[player.UserID] = player
+
+	go player.CreateReadPump(gr.EventReceiver)
+	go player.CreateWritePump()
 }
 
 // use when player reconnected
 func (gr *GameRoom) PlayerReconnected(userID string, newConn *websocket.Conn) {
 	var reconnectedPlayer *Player = gr.PlayerList[userID]
-	go reconnectedPlayer.Read(gr.EventReceiver)
 	reconnectedPlayer.Reconnect(newConn)
+
+	go reconnectedPlayer.CreateReadPump(gr.EventReceiver)
+	go reconnectedPlayer.CreateWritePump()
 }
 
 // use when player disconnected

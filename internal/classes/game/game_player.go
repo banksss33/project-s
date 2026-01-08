@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"project-s/internal/types"
 
 	"github.com/gofiber/contrib/websocket"
@@ -11,6 +12,7 @@ const StatusDisconnected = "DISCONNECTED"
 
 type Player struct {
 	UserID           string
+	SendJSON         chan json.RawMessage
 	Roles            string
 	ConnectionStatus string // CONNECTED | DISCONNECTED
 	Conn             *websocket.Conn
@@ -39,7 +41,7 @@ func (p *Player) Disconnect() {
 	}
 }
 
-func (p *Player) Read(eventReceiver chan<- types.ActionEvent) {
+func (p *Player) CreateReadPump(eventReceiver chan<- types.ActionEvent) {
 	defer p.Disconnect()
 	for {
 		var clientAction types.ActionEvent
@@ -52,6 +54,12 @@ func (p *Player) Read(eventReceiver chan<- types.ActionEvent) {
 	}
 }
 
-func (p *Player) Send() {
-
+func (p *Player) CreateWritePump() {
+	defer p.Disconnect()
+	for JSON := range p.SendJSON {
+		err := p.Conn.WriteJSON(JSON)
+		if err != nil {
+			break
+		}
+	}
 }
