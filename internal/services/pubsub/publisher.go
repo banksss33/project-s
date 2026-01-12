@@ -16,11 +16,11 @@ func NewPublisher() *Publisher {
 	}
 }
 
-func (p *Publisher) Notify(topic string, actionEvent types.ActionEvent) {
+func (p *Publisher) Notify(topic string, playerAction types.PlayerAction) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
 	for subscriber := range p.Subscribers[topic] {
-		subscriber.Event <- actionEvent
+		subscriber.playerAction <- playerAction
 	}
 }

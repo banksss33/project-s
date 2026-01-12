@@ -6,19 +6,19 @@ import (
 )
 
 type Subscriber struct {
-	SubscribeTo map[*Publisher]map[string]bool //Key: Pub Value: map[ Key: subTopic value: bool ]
-	Event       chan types.ActionEvent
-	mu          sync.RWMutex
+	SubscribeTo  map[*Publisher]map[string]bool //Key: Pub Value: map[ Key: subTopic value: bool ]
+	playerAction chan types.PlayerAction
+	mu           sync.RWMutex
 }
 
 func NewSubscriber() *Subscriber {
 	return &Subscriber{
-		SubscribeTo: make(map[*Publisher]map[string]bool),
-		Event:       make(chan types.ActionEvent, 5),
+		SubscribeTo:  make(map[*Publisher]map[string]bool),
+		playerAction: make(chan types.PlayerAction, 5),
 	}
 }
 
-func (sub *Subscriber) Subscribe(publisher *Publisher, topic string, callback func(actionEvent types.ActionEvent)) {
+func (sub *Subscriber) Subscribe(publisher *Publisher, topic string, callback func(actionEvent types.PlayerAction)) {
 	sub.mu.Lock()
 	defer sub.mu.Unlock()
 
@@ -41,8 +41,8 @@ func (sub *Subscriber) Subscribe(publisher *Publisher, topic string, callback fu
 	sub.SubscribeTo[publisher][topic] = true
 
 	go func() {
-		for e := range sub.Event {
-			callback(e)
+		for playerAction := range sub.playerAction {
+			callback(playerAction)
 		}
 	}()
 
@@ -63,6 +63,6 @@ func (sub *Subscriber) Unsubscribe(topic string, publisher *Publisher) {
 	}
 
 	if len(sub.SubscribeTo) == 0 {
-		close(sub.Event)
+		close(sub.playerAction)
 	}
 }

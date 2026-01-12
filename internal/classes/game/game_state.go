@@ -1,42 +1,64 @@
 package game
 
 import (
-	"encoding/json"
-	"project-s/internal/types"
+	"sync"
 )
 
-type State interface {
-	GetStateName(types.ActionEvent)
+type GameState interface {
+	StateInit()
+	OnPlayerJoin(*Player)
+	OnPlayerLeft(*Player)
+	GetName() string
 }
 
-// TimeLeft  int
-// RoundLeft int
-// Location  string
-// Spies     int
-
-type GameState struct {
-	currentState State
-}
-
-func (gs *GameState) SetState(payload json.RawMessage) {
-	State := map[string]State{
-		"LOBBY": &LobbyState{},
-	}
-
-	var payloadData types.StatePayload
-	json.Unmarshal(payload, &payloadData)
-
-	gs.currentState = State[payloadData.SetState]
+func GetStateName(room *GameRoom) string {
+	return room.State.GetName()
 }
 
 type LobbyState struct {
-	GameState
+	stateName    string
+	playerStatus map[*Player]bool //True = Ready, False = Unready
+	mu           sync.Mutex
 }
 
-func (l *LobbyState) GetStateName(event types.ActionEvent) {
+func (l *LobbyState) StateInit() {
+	l.stateName = "LOBBY_STATE"
+	l.playerStatus = make(map[*Player]bool)
+}
+
+func (l *LobbyState) OnPlayerJoin(player *Player) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.playerStatus[player] = false
 
 }
 
-func (l *LobbyState) GetPlayerList(event types.ActionEvent) {
+func (l *LobbyState) OnPlayerLeft(player *Player) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
 
+	delete(l.playerStatus, player)
+}
+
+func (l *LobbyState) GetName() string {
+	return "LOBBY_STATE"
+}
+
+func (l *LobbyState) PlayerReady(player *Player) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if exists := l.playerStatus[player]; exists {
+		l.playerStatus[player] = true
+	}
+}
+
+func (l *LobbyState) PlayerUnready(player *Player) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if exists := l.playerStatus[player]; exists {
+		l.playerStatus[player] = false
+	}
 }

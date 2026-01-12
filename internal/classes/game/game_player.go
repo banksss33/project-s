@@ -7,50 +7,45 @@ import (
 	"github.com/gofiber/contrib/websocket"
 )
 
-const StatusConnected = "CONNECTED"
-const StatusDisconnected = "DISCONNECTED"
-
 type Player struct {
-	UserID           string
-	SendJSON         chan json.RawMessage
-	Roles            string
-	ConnectionStatus string // CONNECTED | DISCONNECTED
-	Conn             *websocket.Conn
-	Score            int // Score
+	UserID      string
+	SendJSON    chan json.RawMessage
+	IsConnected bool // True = connect, False = notconnect
+	Conn        *websocket.Conn
 }
 
 func NewPlayer(userID string, conn *websocket.Conn) *Player {
 	return &Player{
-		UserID:           userID,
-		ConnectionStatus: StatusConnected,
-		Conn:             conn,
-		Score:            0,
+		UserID:      userID,
+		SendJSON:    make(chan json.RawMessage),
+		IsConnected: true,
+		Conn:        conn,
 	}
 }
 
-func (p *Player) Reconnect(reconnect *websocket.Conn) {
-	p.ConnectionStatus = StatusConnected
-	p.Conn = reconnect
+func (p *Player) Reconnect(conn *websocket.Conn) {
+	p.IsConnected = true
+	p.Conn = conn
 }
 
 func (p *Player) Disconnect() {
-	p.ConnectionStatus = StatusDisconnected
+	p.IsConnected = false
 	if p.Conn != nil {
 		p.Conn.Close()
 		p.Conn = nil
 	}
 }
 
-func (p *Player) CreateReadPump(eventReceiver chan<- types.ActionEvent) {
+func (p *Player) CreateReadPump(eventReceiver chan<- types.PlayerAction) {
 	defer p.Disconnect()
 	for {
-		var clientAction types.ActionEvent
+		var playerAction types.PlayerAction
 
-		if err := p.Conn.ReadJSON(&clientAction); err != nil {
+		if err := p.Conn.ReadJSON(&playerAction); err != nil {
 			break
 		}
 
-		eventReceiver <- clientAction
+		eventReceiver <- playerAction
 	}
 }
 
