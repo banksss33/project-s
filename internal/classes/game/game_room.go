@@ -20,13 +20,12 @@ func NewGameRoom(roomID string) *GameRoom {
 		Broadcast:  make(chan json.RawMessage),
 	}
 
-	newRoom.State.StateInit()
-	go newRoom.BroadcastInit()
+	go newRoom.broadcastInit()
 
 	return newRoom
 }
 
-func (gr *GameRoom) BroadcastInit() {
+func (gr *GameRoom) broadcastInit() {
 	for broadcastItem := range gr.Broadcast {
 		for _, player := range gr.PlayerList {
 			player.SendJSON <- broadcastItem
