@@ -1,53 +1,42 @@
 package game
 
 import (
+	"math/rand/v2"
+	"project-s/internal/types"
 	"sync"
+	"time"
 )
 
-type GameState interface {
-	OnPlayerJoin(*Player)
-	OnPlayerLeft(*Player)
-	Name() string
-}
-
-func GetStateName(room *GameRoom) string {
-	return room.State.Name()
-}
-
 type LobbyState struct {
-	stateName    string
-	playerStatus map[*Player]bool //True = Ready, False = Unready
-	mu           sync.Mutex
+	stateName   string
+	readyStatus map[*Player]bool //True = Ready, False = Unready
+	mu          sync.Mutex
 
-	//setting
-	spies     int
-	timer     int
-	locations map[string][]string //key: location name| value: location roles
+	types.GameSetting
 }
 
-func (l *LobbyState) Init() {
+func (l *LobbyState) Init(spiesCount, timer int, locations map[string][]string) {
 	l.stateName = "LOBBY_STATE"
-	l.playerStatus = make(map[*Player]bool)
+	l.readyStatus = make(map[*Player]bool)
 
 	//init default setting
-	l.spies = 1
-	l.timer = 420
-	l.locations = make(map[string][]string)
+	l.Spies = spiesCount
+	l.Timer = timer
+	l.Locations = locations
 }
 
 func (l *LobbyState) OnPlayerJoin(player *Player) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.playerStatus[player] = false
-
+	l.readyStatus[player] = false
 }
 
 func (l *LobbyState) OnPlayerLeft(player *Player) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	delete(l.playerStatus, player)
+	delete(l.readyStatus, player)
 }
 
 func (l *LobbyState) Name() string {
@@ -58,8 +47,8 @@ func (l *LobbyState) PlayerReady(player *Player) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if _, exists := l.playerStatus[player]; exists {
-		l.playerStatus[player] = true
+	if _, exists := l.readyStatus[player]; exists {
+		l.readyStatus[player] = true
 	}
 }
 
@@ -67,40 +56,29 @@ func (l *LobbyState) PlayerUnready(player *Player) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if _, exists := l.playerStatus[player]; exists {
-		l.playerStatus[player] = false
+	if _, exists := l.readyStatus[player]; exists {
+		l.readyStatus[player] = false
 	}
 }
 
-func (l *LobbyState) addLocation(locationName string, locationRoles []string) {
+func (l *LobbyState) EditSetting(newSetting types.GameSetting) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if _, exists := l.locations[locationName]; exists {
-		return
-	}
-
-	l.locations[locationName] = locationRoles
+	l.Locations = newSetting.Locations
+	l.Spies = newSetting.Spies
+	l.Timer = newSetting.Timer
 }
 
-func (l *LobbyState) EditLocation(targetLocation string, newRoles []string) {
+func (l *LobbyState) IsReady() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if _, exists := l.locations[targetLocation]; exists {
-		l.locations[targetLocation] = newRoles
-	}
-}
-
-func (l *LobbyState) isReady() bool {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	if len(l.playerStatus) < 3 {
+	if len(l.readyStatus) < 3 {
 		return false
 	}
 
-	for _, ready := range l.playerStatus {
+	for _, ready := range l.readyStatus {
 		if !ready {
 			return false
 		}
@@ -110,17 +88,71 @@ func (l *LobbyState) isReady() bool {
 }
 
 type InGameState struct {
-	stateName      string
 	timerCountdown int
+	ticker         *time.Ticker
+	stateName      string
 	location       string
-	playerRoles    map[*Player]string //key: player | value: player's roles
+	isVoting       bool
+	playerRoles    map[*Player]types.PlayerStatus //key: player | value: player's roles
+	mu             sync.Mutex
 }
 
-func (i *InGameState) Init(timer int, location string, playerList map[*Player]bool) {
+// random player roles here
+func (i *InGameState) Init(setting types.GameSetting, playerList map[*Player]bool) {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+
 	i.stateName = "IN_GAME_STATE"
+	i.timerCountdown = setting.Timer
+	i.ticker = time.NewTicker(time.Second)
+	i.isVoting = false
+	i.playerRoles = make(map[*Player]types.PlayerStatus)
+
+	//random location
+	randomLocation := randomkeyFromMap[string, []string](setting.Locations, 1)[0]
+
+	//random roles to player
+	shuffledRoles := setting.Locations[randomLocation]
+	rand.Shuffle(len(randomLocation), func(a, b int) {
+		shuffledRoles[a], shuffledRoles[b] = shuffledRoles[b], shuffledRoles[a]
+	})
+
+	//assign random spies role from playerList then remove that from playerList
+	randomSpies := randomkeyFromMap(playerList, uint(setting.Spies))
+	for _, player := range randomSpies {
+		i.playerRoles[player] = types.PlayerStatus{
+			Score: 0,
+			Roles: "SPY",
+		}
+		delete(playerList, player)
+	}
+
+	//assign random location to player
+	index := 0
+	for player, _ := range playerList {
+		i.playerRoles[player] = types.PlayerStatus{
+			Score: 0,
+			Roles: shuffledRoles[index],
+		}
+		index++
+	}
+}
+
+func (i *InGameState) StartTimer(notifier chan<- bool) {
+	for i.timerCountdown > 0 {
+		<-i.ticker.C
+		i.timerCountdown--
+		notifier <- true
+	}
+}
+
+func (i *InGameState) PauseTimer() {
+
 }
 
 func (i *InGameState) OnPlayerJoin(player *Player) {
+	//check if player exists in playerRoles if not then it mean recently join = spectator
+	//
 
 }
 
@@ -130,4 +162,19 @@ func (i *InGameState) OnPlayerLeft(player *Player) {
 
 func (i *InGameState) Name() string {
 	return i.stateName
+}
+
+// helper func
+func randomkeyFromMap[K comparable, V any](paramMap map[K]V, retCount uint) []K {
+	paramLength := len(paramMap)
+	randomkey := make([]K, 0, paramLength)
+	for key, _ := range paramMap {
+		randomkey = append(randomkey, key)
+	}
+
+	rand.Shuffle(paramLength, func(a, b int) {
+		randomkey[a], randomkey[b] = randomkey[b], randomkey[a]
+	})
+
+	return randomkey[0:retCount]
 }

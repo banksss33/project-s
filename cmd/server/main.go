@@ -1,43 +1,38 @@
 package main
 
 import (
+	"project-s/internal/classes/game"
+	"sync"
+
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
 )
 
 func main() {
 	App := fiber.New()
-	// var gameServer = make(map[string]*game.GameRoom)
+	var mu sync.RWMutex
+	var gameServer = make(map[string]*game.GameRoom)
+
 	App.Get("/ws", websocket.New(func(conn *websocket.Conn) {
-		// roomID := conn.Query("roomID")
-		// userID := conn.Query("userID")
+		roomID := conn.Query("roomID")
+		userID := conn.Query("userID")
+		var player *game.Player = game.NewPlayer(userID, conn)
 
-		// if roomID == "" || userID == "" {
-		// 	closeMsg := websocket.FormatCloseMessage(
-		// 		websocket.CloseUnsupportedData,
-		// 		"Parameter required for roomID and userID",
-		// 	)
-		// 	conn.WriteMessage(websocket.CloseMessage, closeMsg)
-		// 	conn.Close()
+		mu.Lock()
+		if _, exists := gameServer[roomID]; !exists {
+			isClose := make(chan string)
+			gameServer[roomID] = game.NewGameRoom(isClose)
 
-		// 	return
-		// }
-		// _, exists := gameServer[roomID]
+			go func() {
+				id := <-isClose
+				delete(gameServer, id)
+			}()
+		}
+		mu.Unlock()
 
-		// if !exists {
-		// 	gameServer[roomID] = game.NewGameRoom()
-		// }
-		// room := gameServer[roomID]
-		// room.AddPlayer(userID, conn)
-		// for {
-		// 	_, msg, err := conn.ReadMessage()
-		// 	if err != nil {
-		// 		break
-		// 	}
-		// 	log.Println(string(msg))
-
-		// 	room.ActionEvent <- 0
-		// }
+		mu.RLock()
+		gameServer[roomID].PlayerRegister(player)
+		mu.RUnlock()
 	}))
 
 	App.Listen(":8080")
