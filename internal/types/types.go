@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"time"
 )
 
 type PlayerAction struct {
@@ -24,4 +25,10 @@ type GameSetting struct {
 	Spies     int
 	Timer     int
 	Locations map[string][]string //key: location name| value: location roles
+}
+
+type GameTimer struct {
+	Tick      *time.Ticker
+	IsRunning bool
+	Countdown int
 }

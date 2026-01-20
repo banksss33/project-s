@@ -9,6 +9,7 @@ import (
 
 type LobbyState struct {
 	stateName   string
+	Host        *Player          //player that are host
 	readyStatus map[*Player]bool //True = Ready, False = Unready
 	mu          sync.Mutex
 
@@ -88,13 +89,12 @@ func (l *LobbyState) IsReady() bool {
 }
 
 type InGameState struct {
-	timerCountdown int
-	ticker         *time.Ticker
-	stateName      string
-	location       string
-	isVoting       bool
-	playerRoles    map[*Player]types.PlayerStatus //key: player | value: player's roles
-	mu             sync.Mutex
+	timer       types.GameTimer
+	stateName   string
+	location    string
+	isVoting    bool
+	playerRoles map[*Player]types.PlayerStatus //key: player | value: player's roles
+	mu          sync.Mutex
 }
 
 // random player roles here
@@ -103,8 +103,13 @@ func (i *InGameState) Init(setting types.GameSetting, playerList map[*Player]boo
 	defer i.mu.Unlock()
 
 	i.stateName = "IN_GAME_STATE"
-	i.timerCountdown = setting.Timer
-	i.ticker = time.NewTicker(time.Second)
+
+	i.timer = types.GameTimer{
+		Tick:      time.NewTicker(time.Second),
+		IsRunning: false,
+		Countdown: setting.Timer,
+	}
+
 	i.isVoting = false
 	i.playerRoles = make(map[*Player]types.PlayerStatus)
 
@@ -138,16 +143,28 @@ func (i *InGameState) Init(setting types.GameSetting, playerList map[*Player]boo
 	}
 }
 
-func (i *InGameState) StartTimer(notifier chan<- bool) {
-	for i.timerCountdown > 0 {
-		<-i.ticker.C
-		i.timerCountdown--
-		notifier <- true
+func (i *InGameState) StartTimer(countdown chan<- int) {
+	if i.timer.IsRunning {
+		return
 	}
+
+	i.timer.IsRunning = true
+	go func() {
+		for i.timer.Countdown > 0 {
+			<-i.timer.Tick.C
+			i.timer.Countdown--
+			countdown <- i.timer.Countdown
+		}
+	}()
 }
 
 func (i *InGameState) PauseTimer() {
+	if !i.timer.IsRunning {
+		return
+	}
 
+	i.timer.Tick.Stop()
+	i.timer.IsRunning = false
 }
 
 func (i *InGameState) OnPlayerJoin(player *Player) {

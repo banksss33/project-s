@@ -10,21 +10,21 @@ type GameRoom struct {
 	broadcast      chan types.ServerResponse
 	actionReceiver chan types.PlayerAction
 
-	gameClose chan string
+	gameClose chan bool
 }
 
 // create new game room Constructor
-func NewGameRoom(gameClosed chan string) *GameRoom {
+func NewGameRoom(gameClosedNotifier chan bool) *GameRoom {
 	newRoom := &GameRoom{
 		playerList:     make(map[string]*Player),
 		state:          "LOBBY_STATE",
 		broadcast:      make(chan types.ServerResponse, 5),
 		actionReceiver: make(chan types.PlayerAction, 5),
-		gameClose:      gameClosed,
+		gameClose:      gameClosedNotifier,
 	}
 
 	go newRoom.broadcastInit()
-	go newRoom.receiverInit()
+	go newRoom.actionProcessorInit()
 
 	return newRoom
 }
@@ -32,12 +32,12 @@ func NewGameRoom(gameClosed chan string) *GameRoom {
 func (gr *GameRoom) broadcastInit() {
 	for broadcastItem := range gr.broadcast {
 		for _, player := range gr.playerList {
-			player.SendJSON <- broadcastItem
+			player.SendToPlayer <- broadcastItem
 		}
 	}
 }
 
-func (gr *GameRoom) receiverInit() {
+func (gr *GameRoom) actionProcessorInit() {
 	// for action := range gr.actionReceiver {
 	// 	//send action to dispatcher map
 	// 	// switch state {
@@ -52,6 +52,15 @@ func (gr *GameRoom) PlayerRegister(player *Player) {
 
 	go player.CreateReadPump(gr.actionReceiver)
 	go player.CreateWritePump()
+}
+
+func (gr *GameRoom) Cleanup() {
+	if !gr.isEmpty() {
+		return
+	}
+
+	close(gr.actionReceiver)
+	close(gr.broadcast)
 }
 
 //#region action method - helper

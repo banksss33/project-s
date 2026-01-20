@@ -7,26 +7,27 @@ import (
 )
 
 type Player struct {
-	UserID      string
-	SendJSON    chan types.ServerResponse
-	IsConnected bool // True = connect, False = notconnect
-	Conn        *websocket.Conn
+	UserID       string
+	SendToPlayer chan types.ServerResponse
+	IsConnected  bool // True = connect, False = notconnect
+	Conn         *websocket.Conn
 }
 
 func NewPlayer(userID string, conn *websocket.Conn) *Player {
 	return &Player{
-		UserID:      userID,
-		SendJSON:    make(chan types.ServerResponse),
-		IsConnected: true,
-		Conn:        conn,
+		UserID:       userID,
+		SendToPlayer: make(chan types.ServerResponse),
+		IsConnected:  true,
+		Conn:         conn,
 	}
 }
 
 func (p *Player) disconnect() {
-	p.IsConnected = false
 	if p.Conn != nil {
+		p.IsConnected = false
 		p.Conn.Close()
 		p.Conn = nil
+		close(p.SendToPlayer)
 	}
 }
 
@@ -50,8 +51,7 @@ func (p *Player) CreateReadPump(actionReceiver chan<- types.PlayerAction) {
 }
 
 func (p *Player) CreateWritePump() {
-	defer p.disconnect()
-	for JSON := range p.SendJSON {
+	for JSON := range p.SendToPlayer {
 		err := p.Conn.WriteJSON(JSON)
 		if err != nil {
 			break

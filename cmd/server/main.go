@@ -16,23 +16,42 @@ func main() {
 	App.Get("/ws", websocket.New(func(conn *websocket.Conn) {
 		roomID := conn.Query("roomID")
 		userID := conn.Query("userID")
-		var player *game.Player = game.NewPlayer(userID, conn)
-
-		mu.Lock()
-		if _, exists := gameServer[roomID]; !exists {
-			isClose := make(chan string)
-			gameServer[roomID] = game.NewGameRoom(isClose)
-
-			go func() {
-				id := <-isClose
-				delete(gameServer, id)
-			}()
-		}
-		mu.Unlock()
+		var newPlayer *game.Player = game.NewPlayer(userID, conn)
 
 		mu.RLock()
-		gameServer[roomID].PlayerRegister(player)
+		room, exists := gameServer[roomID]
 		mu.RUnlock()
+
+		if !exists {
+			mu.Lock()
+			room, exists := gameServer[roomID]
+			if !exists {
+				isClosedNotifier := make(chan bool)
+
+				newRoom := game.NewGameRoom(isClosedNotifier)
+				gameServer[roomID] = newRoom
+				go func(id string) {
+					<-isClosedNotifier
+
+					//Room cleanup operation
+					mu.Lock()
+					closeRoom := gameServer[roomID]
+					closeRoom.Cleanup()
+					delete(gameServer, roomID)
+					mu.Unlock()
+				}(roomID)
+
+				newRoom.PlayerRegister(newPlayer)
+				mu.Unlock()
+				return
+			}
+
+			room.PlayerRegister(newPlayer)
+			mu.Unlock()
+			return
+		}
+
+		room.PlayerRegister(newPlayer)
 	}))
 
 	App.Listen(":8080")
