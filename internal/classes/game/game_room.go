@@ -14,7 +14,7 @@ type GameRoom struct {
 }
 
 // create new game room Constructor
-func NewGameRoom(gameClosedNotifier chan bool) *GameRoom {
+func NewGameRoom(gameClosedNotifier chan bool, host *Player) *GameRoom {
 	newRoom := &GameRoom{
 		playerList:     make(map[string]*Player),
 		state:          "LOBBY_STATE",
@@ -25,6 +25,14 @@ func NewGameRoom(gameClosedNotifier chan bool) *GameRoom {
 
 	go newRoom.broadcastInit()
 	go newRoom.actionProcessorInit()
+
+	gameCreatedAction := types.PlayerAction{
+		UserID:     host.UserID,
+		ActionName: "GAME_CREATED",
+		Payload:    nil,
+	}
+
+	newRoom.actionReceiver <- gameCreatedAction
 
 	return newRoom
 }
@@ -38,11 +46,14 @@ func (gr *GameRoom) broadcastInit() {
 }
 
 func (gr *GameRoom) actionProcessorInit() {
+	// var lobby *LobbyState
+	// var inGame *InGameState
+
 	// for action := range gr.actionReceiver {
-	// 	//send action to dispatcher map
-	// 	// switch state {
-	// 	//
-	// 	// }
+	// 	switch gr.state {
+	// 	case "LOBBY_STATE":
+
+	// 	}
 	// }
 }
 

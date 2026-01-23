@@ -13,7 +13,7 @@ func main() {
 	var mu sync.RWMutex
 	var gameServer = make(map[string]*game.GameRoom)
 
-	App.Get("/ws", websocket.New(func(conn *websocket.Conn) {
+	App.Get("/connect", websocket.New(func(conn *websocket.Conn) {
 		roomID := conn.Query("roomID")
 		userID := conn.Query("userID")
 		var newPlayer *game.Player = game.NewPlayer(userID, conn)
@@ -28,7 +28,7 @@ func main() {
 			if !exists {
 				isClosedNotifier := make(chan bool)
 
-				newRoom := game.NewGameRoom(isClosedNotifier)
+				newRoom := game.NewGameRoom(isClosedNotifier, newPlayer)
 				gameServer[roomID] = newRoom
 				go func(id string) {
 					<-isClosedNotifier

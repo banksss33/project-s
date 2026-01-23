@@ -22,6 +22,7 @@ type PlayerStatus struct {
 }
 
 type GameSetting struct {
+	Round     int
 	Spies     int
 	Timer     int
 	Locations map[string][]string //key: location name| value: location roles

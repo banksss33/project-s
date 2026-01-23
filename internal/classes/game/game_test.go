@@ -1,4 +1,4 @@
-// package game_test
+package game_test
 
 // import (
 // 	"project-s/internal/classes/game"
