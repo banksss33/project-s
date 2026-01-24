@@ -17,8 +17,9 @@ type ServerResponse struct {
 }
 
 type PlayerStatus struct {
-	Score int
-	Roles string
+	Score       int
+	Roles       string
+	AlreadyVote bool
 }
 
 type GameSetting struct {

@@ -32,6 +32,9 @@ func (p *Player) disconnect() {
 }
 
 func (p *Player) CreateReadPump(actionReceiver chan<- types.PlayerAction) {
+	if p.Conn == nil {
+		return
+	}
 	defer p.disconnect()
 	for {
 		var playerAction types.PlayerAction
@@ -51,6 +54,9 @@ func (p *Player) CreateReadPump(actionReceiver chan<- types.PlayerAction) {
 }
 
 func (p *Player) CreateWritePump() {
+	if p.Conn == nil {
+		return
+	}
 	for JSON := range p.SendToPlayer {
 		err := p.Conn.WriteJSON(JSON)
 		if err != nil {

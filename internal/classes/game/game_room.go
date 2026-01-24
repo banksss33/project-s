@@ -5,22 +5,21 @@ import (
 )
 
 type GameRoom struct {
-	playerList     map[string]*Player // Key: userID from Discord, Value: *Player
 	state          string
+	playerList     map[string]*Player // Key: userID from Discord, Value: *Player
 	broadcast      chan types.ServerResponse
 	actionReceiver chan types.PlayerAction
-
-	gameClose chan bool
+	gameClose      chan bool
 }
 
 // create new game room Constructor
-func NewGameRoom(gameClosedNotifier chan bool, host *Player) *GameRoom {
+func NewGameRoom(gameClose chan bool, host *Player) *GameRoom {
 	newRoom := &GameRoom{
 		playerList:     make(map[string]*Player),
 		state:          "LOBBY_STATE",
 		broadcast:      make(chan types.ServerResponse, 5),
 		actionReceiver: make(chan types.PlayerAction, 5),
-		gameClose:      gameClosedNotifier,
+		gameClose:      gameClose,
 	}
 
 	go newRoom.broadcastInit()

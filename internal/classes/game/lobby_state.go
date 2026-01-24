@@ -10,17 +10,17 @@ type LobbyState struct {
 	playerList map[*Player]bool //Key:  player, value: true = player, false = spectator
 	mu         sync.Mutex
 
-	types.GameSetting
+	setting types.GameSetting
 }
 
 func (l *LobbyState) Init(host *Player, locations map[string][]string) {
 	l.playerList = make(map[*Player]bool)
 
 	//init default setting
-	l.Spies = 1
-	l.Timer = 420
+	l.setting.Spies = 1
+	l.setting.Timer = 420
+	l.setting.Locations = locations
 	l.host = host
-	l.Locations = locations
 }
 
 func (l *LobbyState) OnPlayerJoin(player *Player) {
