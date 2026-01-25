@@ -34,3 +34,12 @@ type GameTimer struct {
 	IsRunning bool
 	Countdown int
 }
+
+type GameStatus struct {
+	IsTimeRunning bool
+	IsVoting      bool
+	IsRoundEnd    bool
+	RoundLeft     int
+	PlayerStats   map[string]PlayerStatus
+	Spectator     []string
+}

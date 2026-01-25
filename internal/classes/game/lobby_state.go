@@ -2,15 +2,12 @@ package game
 
 import (
 	"project-s/internal/types"
-	"sync"
 )
 
 type LobbyState struct {
 	host       *Player          //player that are host
 	playerList map[*Player]bool //Key:  player, value: true = player, false = spectator
-	mu         sync.Mutex
-
-	setting types.GameSetting
+	setting    types.GameSetting
 }
 
 func (l *LobbyState) Init(host *Player, locations map[string][]string) {
@@ -24,31 +21,19 @@ func (l *LobbyState) Init(host *Player, locations map[string][]string) {
 }
 
 func (l *LobbyState) OnPlayerJoin(player *Player) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.playerList[player] = true
 }
 
 func (l *LobbyState) OnSpectatorJoin(player *Player) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	l.playerList[player] = false
 }
 
 func (l *LobbyState) OnPlayerLeft(player *Player) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
 	delete(l.playerList, player)
 }
 
 func (l *LobbyState) EditSetting(newSetting types.GameSetting) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-
-	l.Locations = newSetting.Locations
-	l.Spies = newSetting.Spies
-	l.Timer = newSetting.Timer
+	l.setting.Locations = newSetting.Locations
+	l.setting.Spies = newSetting.Spies
+	l.setting.Timer = newSetting.Timer
 }

@@ -4,7 +4,6 @@ import (
 	"math/rand/v2"
 	"project-s/internal/types"
 	"slices"
-	"sync"
 	"time"
 )
 
@@ -15,25 +14,24 @@ type InGameState struct {
 
 	isVoting      bool
 	isRoundEnd    bool
-	accusedPlayer *Player
 	voteLeft      int
+	accusedPlayer *Player
 
 	playerStatus map[*Player]*types.PlayerStatus //key: player | value: player's roles
 	spectator    []*Player
-	mu           sync.Mutex
+	setting      types.GameSetting
 }
 
 // random player roles here
-func (i *InGameState) Init(setting types.GameSetting, playerList []*Player, spectatorList []*Player) {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-
-	i.roundLeft = setting.Round
+func (i *InGameState) Init(gameSetting types.GameSetting, playerList []*Player, spectatorList []*Player) {
+	i.setting = gameSetting
 	i.spectator = slices.Clone(spectatorList)
+
+	//move to start timer
 	i.timer = types.GameTimer{
 		Tick:      time.NewTicker(time.Second),
 		IsRunning: false,
-		Countdown: setting.Timer,
+		Countdown: i.setting.Timer,
 	}
 
 	i.isVoting = false
@@ -41,8 +39,9 @@ func (i *InGameState) Init(setting types.GameSetting, playerList []*Player, spec
 	i.accusedPlayer = nil
 	i.playerStatus = make(map[*Player]*types.PlayerStatus)
 
+	//below here can move to new function
 	//random location
-	randomLocation := randomkeyFromMap[string, []string](setting.Locations, 1)[0]
+	randomLocation := randomkeyFromMap[string, []string](i.setting.Locations, 1)[0]
 	i.location = randomLocation
 
 	//random roles to player
@@ -51,9 +50,9 @@ func (i *InGameState) Init(setting types.GameSetting, playerList []*Player, spec
 		shuffledPlayer[a], shuffledPlayer[b] = shuffledPlayer[b], shuffledPlayer[a]
 	})
 
-	roles := setting.Locations[randomLocation]
+	roles := i.setting.Locations[randomLocation]
 	for index, player := range shuffledPlayer {
-		if index < setting.Spies {
+		if index < i.setting.Spies {
 			i.playerStatus[player] = &types.PlayerStatus{
 				Score:       0,
 				Roles:       "SPY",
@@ -65,9 +64,50 @@ func (i *InGameState) Init(setting types.GameSetting, playerList []*Player, spec
 
 		i.playerStatus[player] = &types.PlayerStatus{
 			Score:       0,
-			Roles:       roles[index-setting.Spies],
+			Roles:       roles[index-i.setting.Spies],
 			AlreadyVote: false,
 		}
+	}
+}
+
+func (i *InGameState) NewRound() {
+	i.timer = types.GameTimer{
+		Tick:      time.NewTicker(time.Second),
+		IsRunning: false,
+		Countdown: i.setting.Timer,
+	}
+
+	i.isVoting = false
+	i.isRoundEnd = false
+	i.accusedPlayer = nil
+
+	var inGamePlayer []*Player
+	for player := range i.playerStatus {
+		inGamePlayer = append(inGamePlayer, player)
+	}
+
+	randomLocation := randomkeyFromMap[string, []string](i.setting.Locations, 1)[0]
+	i.location = randomLocation
+
+	//random roles to player
+	shuffledPlayer := slices.Clone(inGamePlayer)
+	rand.Shuffle(len(shuffledPlayer), func(a, b int) {
+		shuffledPlayer[a], shuffledPlayer[b] = shuffledPlayer[b], shuffledPlayer[a]
+	})
+
+	roles := i.setting.Locations[randomLocation]
+	for index, player := range shuffledPlayer {
+
+		if index < i.setting.Spies {
+			i.playerStatus[player].Roles = "SPY"
+			i.playerStatus[player].AlreadyVote = false
+
+			continue
+		}
+
+		i.playerStatus[player].Roles = roles[index-i.setting.Spies]
+		i.playerStatus[player].AlreadyVote = false
+
 	}
 }
 
@@ -153,7 +193,7 @@ func (i *InGameState) Vote(fromPlayer *Player) {
 		return
 	}
 
-	//vote success game end
+	//vote success Round end
 	accrusedPlayerStatus := i.playerStatus[i.accusedPlayer]
 	if accrusedPlayerStatus.Roles == "SPY" {
 		for _, status := range i.playerStatus {
@@ -206,17 +246,27 @@ func (i *InGameState) SpyVoteLocation(Location string) {
 	i.isRoundEnd = true
 }
 
-func (i *InGameState) NewRound() {
-
-}
-
-func (i *InGameState) GetCurrentStatus() map[*Player]types.PlayerStatus {
-	retStatus := make(map[*Player]types.PlayerStatus)
+func (i *InGameState) GetCurrentGameStatus() types.GameStatus {
+	copiedStats := make(map[string]types.PlayerStatus)
 	for player, status := range i.playerStatus {
-		retStatus[player] = *status
+		copiedStats[player.UserID] = *status
+	}
+	var spec []string
+
+	for _, spectator := range i.spectator {
+		spec = append(spec, spectator.UserID)
 	}
 
-	return retStatus
+	gameStats := types.GameStatus{
+		IsTimeRunning: i.timer.IsRunning,
+		IsVoting:      i.isVoting,
+		IsRoundEnd:    i.isRoundEnd,
+		RoundLeft:     i.roundLeft,
+		PlayerStats:   copiedStats,
+		Spectator:     spec,
+	}
+
+	return gameStats
 }
 
 // helper func
