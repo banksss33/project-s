@@ -5,31 +5,51 @@ import (
 )
 
 type LobbyState struct {
-	host       *Player          //player that are host
-	playerList map[*Player]bool //Key:  player, value: true = player, false = spectator
+	Host       *Player          //player that are host
+	PlayerList map[*Player]bool //Key:  player, value: true = player, false = spectator
 	setting    types.GameSetting
 }
 
-func (l *LobbyState) Init(host *Player, locations map[string][]string) {
-	l.playerList = make(map[*Player]bool)
+func (i *LobbyState) LobbyStateInit(host *Player, locations map[string][]string) {
+	i.Host = host
+	i.PlayerList = make(map[*Player]bool)
+	i.setting = types.GameSetting{
+		Round:     5,
+		Spies:     1,
+		Timer:     420,
+		Locations: locations,
+	}
 
-	//init default setting
-	l.setting.Spies = 1
-	l.setting.Timer = 420
-	l.setting.Locations = locations
-	l.host = host
 }
 
-func (l *LobbyState) OnPlayerJoin(player *Player) {
-	l.playerList[player] = true
+func (l *LobbyState) PlayerJoin(player *Player) {
+	l.PlayerList[player] = true
 }
 
-func (l *LobbyState) OnSpectatorJoin(player *Player) {
-	l.playerList[player] = false
+func (l *LobbyState) SpectatorJoin(player *Player) {
+	if player == l.Host {
+		for randPlayer := range l.PlayerList {
+			if randPlayer != player {
+				l.Host = randPlayer
+				break
+			}
+		}
+	}
+
+	l.PlayerList[player] = false
 }
 
-func (l *LobbyState) OnPlayerLeft(player *Player) {
-	delete(l.playerList, player)
+func (l *LobbyState) PlayerLeft(player *Player) {
+	if player == l.Host {
+		for randPlayer := range l.PlayerList {
+			if randPlayer != player {
+				l.Host = randPlayer
+				break
+			}
+		}
+	}
+
+	delete(l.PlayerList, player)
 }
 
 func (l *LobbyState) EditSetting(newSetting types.GameSetting) {

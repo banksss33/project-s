@@ -12,7 +12,7 @@ type PlayerAction struct {
 }
 
 type ServerResponse struct {
-	ResponseName string          `json:"json:response_name"`
+	ResponseName string          `json:"response_name"`
 	Payload      json.RawMessage `json:"payload"`
 }
 
@@ -23,10 +23,10 @@ type PlayerStatus struct {
 }
 
 type GameSetting struct {
-	Round     int
-	Spies     int
-	Timer     int
-	Locations map[string][]string //key: location name| value: location roles
+	Round     int                 `json:"round"`
+	Spies     int                 `json:"spies"`
+	Timer     int                 `json:"timer"`
+	Locations map[string][]string `json:"locations"` //key: location name| value: location roles
 }
 
 type GameTimer struct {

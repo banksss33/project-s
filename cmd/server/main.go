@@ -2,6 +2,7 @@ package main
 
 import (
 	"project-s/internal/classes/game"
+	"project-s/internal/types"
 	"sync"
 
 	"github.com/gofiber/contrib/websocket"
@@ -40,10 +41,16 @@ func main() {
 					delete(gameServer, roomID)
 					mu.Unlock()
 				}(roomID)
-
 				newRoom.PlayerRegister(newPlayer)
 				mu.Unlock()
+
 				go newPlayer.CreateWritePump()
+				action := types.PlayerAction{
+					UserID:     newPlayer.UserID,
+					ActionName: "GAME_CREATED",
+					Payload:    nil,
+				}
+				newRoom.ActionReceiver <- action
 				newPlayer.CreateReadPump(newRoom.ActionReceiver)
 				return
 			}

@@ -36,13 +36,21 @@ func (p *Player) CreateReadPump(actionReceiver chan<- types.PlayerAction) {
 		return
 	}
 	defer p.disconnect()
+
+	var playerAction types.PlayerAction
+	playerAction = types.PlayerAction{
+		UserID:     p.UserID,
+		ActionName: "PLAYER_JOIN",
+		Payload:    nil,
+	}
+
+	actionReceiver <- playerAction
 	for {
-		var playerAction types.PlayerAction
 
 		if err := p.Conn.ReadJSON(&playerAction); err != nil {
 			playerAction = types.PlayerAction{
 				UserID:     p.UserID,
-				ActionName: "PLAYER_DISCONNECT",
+				ActionName: "PLAYER_LEFT",
 				Payload:    nil,
 			}
 			actionReceiver <- playerAction
