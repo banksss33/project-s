@@ -43,15 +43,21 @@ func main() {
 
 				newRoom.PlayerRegister(newPlayer)
 				mu.Unlock()
+				go newPlayer.CreateWritePump()
+				newPlayer.CreateReadPump(newRoom.ActionReceiver)
 				return
 			}
+			mu.Unlock()
 
 			room.PlayerRegister(newPlayer)
-			mu.Unlock()
+			go newPlayer.CreateWritePump()
+			newPlayer.CreateReadPump(room.ActionReceiver)
 			return
 		}
 
 		room.PlayerRegister(newPlayer)
+		go newPlayer.CreateWritePump()
+		newPlayer.CreateReadPump(room.ActionReceiver)
 	}))
 
 	App.Listen(":8080")

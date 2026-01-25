@@ -2,14 +2,16 @@ package game
 
 import (
 	"project-s/internal/types"
+	"sync"
 )
 
 type GameRoom struct {
 	state          string
 	playerList     map[string]*Player // Key: userID from Discord, Value: *Player
 	broadcast      chan types.ServerResponse
-	actionReceiver chan types.PlayerAction
+	ActionReceiver chan types.PlayerAction
 	gameClose      chan bool
+	mu             sync.Mutex
 }
 
 // create new game room Constructor
@@ -18,7 +20,7 @@ func NewGameRoom(gameClose chan bool, host *Player) *GameRoom {
 		playerList:     make(map[string]*Player),
 		state:          "LOBBY_STATE",
 		broadcast:      make(chan types.ServerResponse, 5),
-		actionReceiver: make(chan types.PlayerAction, 5),
+		ActionReceiver: make(chan types.PlayerAction, 5),
 		gameClose:      gameClose,
 	}
 
@@ -31,7 +33,7 @@ func NewGameRoom(gameClose chan bool, host *Player) *GameRoom {
 		Payload:    nil,
 	}
 
-	newRoom.actionReceiver <- gameCreatedAction
+	newRoom.ActionReceiver <- gameCreatedAction
 
 	return newRoom
 }
@@ -58,10 +60,10 @@ func (gr *GameRoom) actionProcessorInit() {
 
 // add new player to game room
 func (gr *GameRoom) PlayerRegister(player *Player) {
-	gr.playerList[player.UserID] = player
+	gr.mu.Lock()
+	defer gr.mu.Unlock()
 
-	go player.CreateReadPump(gr.actionReceiver)
-	go player.CreateWritePump()
+	gr.playerList[player.UserID] = player
 }
 
 func (gr *GameRoom) Cleanup() {
@@ -69,7 +71,7 @@ func (gr *GameRoom) Cleanup() {
 		return
 	}
 
-	close(gr.actionReceiver)
+	close(gr.ActionReceiver)
 	close(gr.broadcast)
 }
 
