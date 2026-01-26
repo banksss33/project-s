@@ -58,7 +58,13 @@ func joinGame(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
 	//Broadcast
 	room.Broadcast <- response
 
-	gameSettingJson, _ := json.Marshal(lobby.setting)
+	settingJSON := types.GameSettingPayload{
+		Round:     lobby.setting.Round,
+		Spies:     lobby.setting.Spies,
+		Timer:     lobby.setting.Timer,
+		Locations: lobby.setting.Locations,
+	}
+	gameSettingJson, _ := json.Marshal(settingJSON)
 
 	response.ResponseName = "GAME_SETTING"
 	response.Payload = gameSettingJson
@@ -136,14 +142,19 @@ func editGameSetting(room *GameRoom, lobby *LobbyState, payload types.PlayerActi
 		return
 	}
 
-	var gameSetting types.GameSetting
-	json.Unmarshal(payload.Payload, &gameSetting)
-	lobby.EditSetting(gameSetting)
+	var payloadGameSetting types.GameSettingPayload
+	json.Unmarshal(payload.Payload, &payloadGameSetting)
+	setting := types.GameSetting{
+		Round:     payloadGameSetting.Round,
+		Spies:     payloadGameSetting.Spies,
+		Timer:     payloadGameSetting.Timer,
+		Locations: payloadGameSetting.Locations,
+	}
+	lobby.EditSetting(setting)
 
-	json, _ := json.Marshal(lobby.setting)
 	response := types.ServerResponse{
 		ResponseName: "GAME_SETTING",
-		Payload:      json,
+		Payload:      payload.Payload,
 	}
 
 	room.Broadcast <- response

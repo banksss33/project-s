@@ -111,20 +111,17 @@ func (i *InGameState) NewRound() {
 	}
 }
 
-func (i *InGameState) StartTimer() (countdown chan int, timeUp chan bool) {
-	countdown = make(chan int)
-	timeUp = make(chan bool)
+func (i *InGameState) StartTimer(countdown chan<- int) {
 	i.timer.IsRunning = true
 	go func() {
 		defer close(countdown)
-		defer close(timeUp)
+
 		for i.timer.Countdown > 0 {
 			<-i.timer.Tick.C
 			countdown <- i.timer.Countdown
 			i.timer.Countdown--
 		}
 
-		timeUp <- true
 		for _, status := range i.playerStatus {
 			if status.Roles == "SPY" {
 				status.Score += 2
@@ -134,8 +131,6 @@ func (i *InGameState) StartTimer() (countdown chan int, timeUp chan bool) {
 		i.roundLeft--
 		i.isRoundEnd = true
 	}()
-
-	return countdown, timeUp
 }
 
 func (i *InGameState) ResumeTimer() {

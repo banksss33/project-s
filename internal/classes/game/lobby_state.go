@@ -19,7 +19,6 @@ func (i *LobbyState) LobbyStateInit(host *Player, locations map[string][]string)
 		Timer:     420,
 		Locations: locations,
 	}
-
 }
 
 func (l *LobbyState) PlayerJoin(player *Player) {
@@ -56,4 +55,25 @@ func (l *LobbyState) EditSetting(newSetting types.GameSetting) {
 	l.setting.Locations = newSetting.Locations
 	l.setting.Spies = newSetting.Spies
 	l.setting.Timer = newSetting.Timer
+}
+
+func (l *LobbyState) GetPlayers() []*Player {
+	players := make([]*Player, 0)
+	for player, isPlayer := range l.PlayerList {
+		if isPlayer {
+			players = append(players, player)
+		}
+	}
+
+	return players
+}
+func (l *LobbyState) GetSpectators() []*Player {
+	spectators := make([]*Player, 0)
+	for player, isPlayer := range l.PlayerList {
+		if !isPlayer {
+			spectators = append(spectators, player)
+		}
+	}
+
+	return spectators
 }

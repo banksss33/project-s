@@ -1,6 +1,7 @@
 package game
 
 import (
+	"encoding/json"
 	"project-s/internal/types"
 	"sync"
 )
@@ -39,17 +40,58 @@ func (gr *GameRoom) broadcastInit() {
 }
 
 func (gr *GameRoom) actionProcessorInit() {
-	var lobby *LobbyState = &LobbyState{}
-	// var inGame *InGameState
+	countdown := make(chan int)
+	var lobby = &LobbyState{}
+	var inGame = &InGameState{}
 
 	lobbyAction := LobbyActionDispatcher()
-	for playerAction := range gr.ActionReceiver {
-		switch gr.state {
-		case "LOBBY_STATE":
-			action := lobbyAction[playerAction.ActionName]
-			action(gr, lobby, playerAction)
+	inGameAction := InGameActionDispatcher()
+	for {
+		select {
+		case action, ok := <-gr.ActionReceiver:
+			if !ok {
+				break
+			}
+
+			if action.ActionName == "START_GAME" && gr.state == "LOBBY_STATE" && gr.PlayerList[action.UserID] == lobby.Host {
+				gr.state = "IN_GAME_STATE"
+				players := lobby.GetPlayers()
+				spectators := lobby.GetSpectators()
+				inGame.Init(lobby.setting, players, spectators)
+				inGame.StartTimer(countdown)
+			}
+
+			switch gr.state {
+			case "LOBBY_STATE":
+				useLobbyAction := lobbyAction[action.ActionName]
+				useLobbyAction(gr, lobby, action)
+			case "IN_GAME_STATE":
+				useInGameAction := inGameAction[action.ActionName]
+				useInGameAction(gr, inGame, action)
+			}
+		case cd := <-countdown:
+			//broadcast time
+			timerUpdate := types.UpdateTimerResponse{
+				TimerNow: cd,
+			}
+
+			jsonTimerUpdatePayload, _ := json.Marshal(timerUpdate)
+			serverResponse := types.ServerResponse{
+				ResponseName: "TIMER_UPDATE",
+				Payload:      jsonTimerUpdatePayload,
+			}
+
+			gr.Broadcast <- serverResponse
 		}
 	}
+}
+
+func (gr *GameRoom) GetPlayerByID(userID string) *Player {
+	gr.mu.Lock()
+	defer gr.mu.Unlock()
+	player := gr.PlayerList[userID]
+
+	return player
 }
 
 // add new player to game room
