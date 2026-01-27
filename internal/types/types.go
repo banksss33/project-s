@@ -28,6 +28,4 @@ type GameStatus struct {
 	IsVoting      bool
 	IsRoundEnd    bool
 	RoundLeft     int
-	PlayerStats   map[string]PlayerStatus
-	Spectator     []string
 }

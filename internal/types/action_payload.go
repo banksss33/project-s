@@ -20,3 +20,11 @@ type GameSettingPayload struct {
 	Timer     int                 `json:"timer"`
 	Locations map[string][]string `json:"locations"` //key: location name| value: location roles
 }
+
+type AccusePayload struct {
+	TargetUserID string `json:"target_user_id"`
+}
+
+type SpyGuessPayload struct {
+	Location string `json:"location"`
+}

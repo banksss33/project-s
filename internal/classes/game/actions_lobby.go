@@ -19,131 +19,58 @@ func LobbyActionDispatcher() map[string]func(*GameRoom, *LobbyState, types.Playe
 
 func lobbyCreated(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
 	host := room.PlayerList[payload.UserID]
-	//Mock Data supposed to be from data
-	var mockLocations = map[string][]string{
-		"Airplane":      {"Pilot", "Co-pilot", "Flight Attendant", "Passenger", "Air Marshal", "Mechanic"},
-		"Hospital":      {"Surgeon", "Nurse", "Patient", "Therapist", "Security Guard", "Doctor"},
-		"Bank":          {"Bank Manager", "Teller", "Robber", "Customer", "Armored Car Driver", "Consultant"},
-		"Pirate Ship":   {"Captain", "Cabin Boy", "Pirate", "Gunner", "Bound Prisoner", "Cook"},
-		"Space Station": {"Astronaut", "Scientist", "Commander", "Engineer", "Alien", "Space Tourist"},
-	}
-
-	lobby.LobbyStateInit(host, mockLocations)
+	lobby.LobbyStateInit(host)
 }
 
 func joinGame(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
 	player := room.PlayerList[payload.UserID]
+	if player == nil {
+		return
+	}
 	lobby.PlayerJoin(player)
 
-	responsePayload := types.UpdateLobbyPlayerListResponse{
-		Players:    make([]string, 0),
-		Spectators: make([]string, 0),
-	}
-	responsePayload.Host = lobby.Host.UserID
-	for player, isPlayer := range lobby.PlayerList {
-		if isPlayer {
-			responsePayload.Players = append(responsePayload.Players, player.UserID)
-			continue
-		}
-
-		responsePayload.Spectators = append(responsePayload.Spectators, player.UserID)
-	}
-
-	jsonResponsePayload, _ := json.Marshal(responsePayload)
-
-	response := types.ServerResponse{
-		ResponseName: "UPDATE_LOBBY_PLAYER_LIST",
-		Payload:      jsonResponsePayload,
-	}
-	//Broadcast
-	room.Broadcast <- response
-
-	settingJSON := types.GameSettingPayload{
-		Round:     lobby.setting.Round,
-		Spies:     lobby.setting.Spies,
-		Timer:     lobby.setting.Timer,
-		Locations: lobby.setting.Locations,
-	}
-	gameSettingJson, _ := json.Marshal(settingJSON)
-
-	response.ResponseName = "GAME_SETTING"
-	response.Payload = gameSettingJson
-
-	player.SendToPlayer <- response
-
+	broadcastLobbyState(room, lobby)
+	sendGameSettings(player, lobby)
 }
 
 func joinSpectator(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
 	player := room.PlayerList[payload.UserID]
+	if player == nil {
+		return
+	}
 	lobby.SpectatorJoin(player)
 
-	responsePayload := types.UpdateLobbyPlayerListResponse{
-		Players:    make([]string, 0),
-		Spectators: make([]string, 0),
-	}
-	responsePayload.Host = lobby.Host.UserID
-	for player, isPlayer := range lobby.PlayerList {
-		if isPlayer {
-			responsePayload.Players = append(responsePayload.Players, player.UserID)
-			continue
-		}
-
-		responsePayload.Spectators = append(responsePayload.Spectators, player.UserID)
-	}
-
-	jsonResponsePayload, err := json.Marshal(responsePayload)
-	if err != nil {
-		panic("ERROR JOIN GAME")
-	}
-
-	response := types.ServerResponse{
-		ResponseName: "UPDATE_LOBBY_PLAYER_LIST",
-		Payload:      jsonResponsePayload,
-	}
-	//Broadcast
-	room.Broadcast <- response
+	broadcastLobbyState(room, lobby)
 }
 
 func leaveGame(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
-	player := room.PlayerList[payload.UserID]
+	player, exists := room.PlayerList[payload.UserID]
+	if !exists {
+		return
+	}
+
 	lobby.PlayerLeft(player)
 	delete(room.PlayerList, player.UserID)
 
-	responsePayload := types.UpdateLobbyPlayerListResponse{
-		Players:    make([]string, 0),
-		Spectators: make([]string, 0),
-	}
-	responsePayload.Host = lobby.Host.UserID
-	for player, isPlayer := range lobby.PlayerList {
-		if isPlayer {
-			responsePayload.Players = append(responsePayload.Players, player.UserID)
-			continue
-		}
-
-		responsePayload.Spectators = append(responsePayload.Spectators, player.UserID)
+	if len(room.PlayerList) == 0 {
+		room.GameClose <- true
+		return
 	}
 
-	jsonResponsePayload, err := json.Marshal(responsePayload)
-	if err != nil {
-		panic("ERROR JOIN GAME")
-	}
-
-	response := types.ServerResponse{
-		ResponseName: "UPDATE_LOBBY_PLAYER_LIST",
-		Payload:      jsonResponsePayload,
-	}
-	//Broadcast
-	room.Broadcast <- response
+	broadcastLobbyState(room, lobby)
 }
 
 func editGameSetting(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
 	player := room.PlayerList[payload.UserID]
-	if lobby.Host != player {
+	if player == nil || lobby.Host != player {
 		return
 	}
 
 	var payloadGameSetting types.GameSettingPayload
-	json.Unmarshal(payload.Payload, &payloadGameSetting)
+	if err := json.Unmarshal(payload.Payload, &payloadGameSetting); err != nil {
+		return
+	}
+
 	setting := types.GameSetting{
 		Round:     payloadGameSetting.Round,
 		Spies:     payloadGameSetting.Spies,
@@ -158,4 +85,51 @@ func editGameSetting(room *GameRoom, lobby *LobbyState, payload types.PlayerActi
 	}
 
 	room.Broadcast <- response
+}
+
+// Helper to broadcast UPDATE_LOBBY_PLAYER_LIST
+func broadcastLobbyState(room *GameRoom, lobby *LobbyState) {
+	responsePayload := types.UpdateLobbyPlayerListResponse{
+		Host:       lobby.Host.UserID,
+		Players:    make([]string, 0),
+		Spectators: make([]string, 0),
+	}
+
+	for player, isPlayer := range lobby.PlayerList {
+		if isPlayer {
+			responsePayload.Players = append(responsePayload.Players, player.UserID)
+		} else {
+			responsePayload.Spectators = append(responsePayload.Spectators, player.UserID)
+		}
+	}
+
+	jsonResponsePayload, err := json.Marshal(responsePayload)
+	if err != nil {
+		return
+	}
+
+	room.Broadcast <- types.ServerResponse{
+		ResponseName: "UPDATE_LOBBY_PLAYER_LIST",
+		Payload:      jsonResponsePayload,
+	}
+}
+
+// Helper to send current settings to specific player
+func sendGameSettings(player *Player, lobby *LobbyState) {
+	settingJSON := types.GameSettingPayload{
+		Round:     lobby.setting.Round,
+		Spies:     lobby.setting.Spies,
+		Timer:     lobby.setting.Timer,
+		Locations: lobby.setting.Locations,
+	}
+
+	gameSettingJson, err := json.Marshal(settingJSON)
+	if err != nil {
+		return
+	}
+
+	player.SendToPlayer <- types.ServerResponse{
+		ResponseName: "GAME_SETTING",
+		Payload:      gameSettingJson,
+	}
 }

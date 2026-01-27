@@ -10,19 +10,19 @@ type LobbyState struct {
 	setting    types.GameSetting
 }
 
-func (i *LobbyState) LobbyStateInit(host *Player, locations map[string][]string) {
+func (i *LobbyState) LobbyStateInit(host *Player) {
 	i.Host = host
 	i.PlayerList = make(map[*Player]bool)
-	i.setting = types.GameSetting{
-		Round:     5,
-		Spies:     1,
-		Timer:     420,
-		Locations: locations,
-	}
+	i.setting.Round = 7
+	i.setting.Spies = 1
+	i.setting.Timer = 420
 }
 
 func (l *LobbyState) PlayerJoin(player *Player) {
 	l.PlayerList[player] = true
+	if l.Host == nil {
+		l.Host = player
+	}
 }
 
 func (l *LobbyState) SpectatorJoin(player *Player) {
@@ -36,6 +36,13 @@ func (l *LobbyState) SpectatorJoin(player *Player) {
 	}
 
 	l.PlayerList[player] = false
+	for _, isPlayer := range l.PlayerList {
+		if isPlayer {
+			break
+		}
+
+		l.Host = nil
+	}
 }
 
 func (l *LobbyState) PlayerLeft(player *Player) {

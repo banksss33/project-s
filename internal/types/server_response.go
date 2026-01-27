@@ -1,6 +1,8 @@
 package types
 
-import "encoding/json"
+import (
+	"encoding/json"
+)
 
 type ServerResponse struct {
 	ResponseName string          `json:"response_name"`
@@ -15,4 +17,18 @@ type UpdateLobbyPlayerListResponse struct {
 
 type UpdateTimerResponse struct {
 	TimerNow int `json:"timer_now"`
+}
+
+type PlayerRoleResponse struct {
+	Role string `json:"role"`
+}
+
+type RolesRevealResponse struct {
+	Winner      string        `json:"winner"`
+	PlayersRole []PlayerRoles `json:"players_role"`
+}
+
+type PlayerRoles struct {
+	UserID string `json:"user_id"`
+	Role   string `json:"role"`
 }

@@ -12,6 +12,7 @@ type InGameState struct {
 	timer     types.GameTimer
 	location  string
 
+	killTimer     chan bool
 	isVoting      bool
 	isRoundEnd    bool
 	voteLeft      int
@@ -22,12 +23,12 @@ type InGameState struct {
 	setting      types.GameSetting
 }
 
-// random player roles here
-func (i *InGameState) Init(gameSetting types.GameSetting, playerList []*Player, spectatorList []*Player) {
+func (i *InGameState) StartNewGame(gameSetting types.GameSetting, playerList []*Player, spectatorList []*Player) {
 	i.setting = gameSetting
 	i.spectator = slices.Clone(spectatorList)
+	i.roundLeft = i.setting.Round
 
-	//move to start timer
+	i.killTimer = make(chan bool)
 	i.timer = types.GameTimer{
 		Tick:      time.NewTicker(time.Second),
 		IsRunning: false,
@@ -39,7 +40,6 @@ func (i *InGameState) Init(gameSetting types.GameSetting, playerList []*Player, 
 	i.accusedPlayer = nil
 	i.playerStatus = make(map[*Player]*types.PlayerStatus)
 
-	//below here can move to new function
 	//random location
 	randomLocation := randomkeyFromMap[string, []string](i.setting.Locations, 1)[0]
 	i.location = randomLocation
@@ -71,12 +71,7 @@ func (i *InGameState) Init(gameSetting types.GameSetting, playerList []*Player, 
 }
 
 func (i *InGameState) NewRound() {
-	i.timer = types.GameTimer{
-		Tick:      time.NewTicker(time.Second),
-		IsRunning: false,
-		Countdown: i.setting.Timer,
-	}
-
+	i.timer.Countdown = i.setting.Timer
 	i.isVoting = false
 	i.isRoundEnd = false
 	i.accusedPlayer = nil
@@ -111,25 +106,34 @@ func (i *InGameState) NewRound() {
 	}
 }
 
-func (i *InGameState) StartTimer(countdown chan<- int) {
+func (i *InGameState) StartNewTimer(countdown chan<- int, timeUp chan<- bool) {
+	i.timer.Tick.Reset(time.Second)
 	i.timer.IsRunning = true
+
 	go func() {
-		defer close(countdown)
+		defer i.timer.Tick.Stop()
 
-		for i.timer.Countdown > 0 {
-			<-i.timer.Tick.C
-			countdown <- i.timer.Countdown
-			i.timer.Countdown--
-		}
+		for {
+			select {
+			case <-i.killTimer:
+				return
+			case <-i.timer.Tick.C:
+				if i.timer.Countdown < 1 {
 
-		for _, status := range i.playerStatus {
-			if status.Roles == "SPY" {
-				status.Score += 2
+					for _, status := range i.playerStatus {
+						if status.Roles == "SPY" {
+							status.Score += 2
+						}
+					}
+					i.roundLeft--
+					i.isRoundEnd = true
+					timeUp <- true
+					return
+				}
+				countdown <- i.timer.Countdown
+				i.timer.Countdown--
 			}
 		}
-
-		i.roundLeft--
-		i.isRoundEnd = true
 	}()
 }
 
@@ -139,6 +143,7 @@ func (i *InGameState) ResumeTimer() {
 	}
 
 	i.timer.Tick.Reset(time.Second)
+	i.timer.IsRunning = true
 }
 
 func (i *InGameState) PauseTimer() {
@@ -222,7 +227,11 @@ func (i *InGameState) Disagree(fromPlayer *Player) {
 	}
 }
 
-func (i *InGameState) SpyVoteLocation(Location string) {
+func (i *InGameState) SpyVoteLocation(fromPlayer *Player, Location string) {
+	if status := i.playerStatus[fromPlayer]; status.Roles != "SPY" {
+		return
+	}
+
 	if Location == i.location {
 		for _, status := range i.playerStatus {
 			if status.Roles == "SPY" {
@@ -239,29 +248,6 @@ func (i *InGameState) SpyVoteLocation(Location string) {
 
 	i.roundLeft--
 	i.isRoundEnd = true
-}
-
-func (i *InGameState) GetCurrentGameStatus() types.GameStatus {
-	copiedStats := make(map[string]types.PlayerStatus)
-	for player, status := range i.playerStatus {
-		copiedStats[player.UserID] = *status
-	}
-	var spec []string
-
-	for _, spectator := range i.spectator {
-		spec = append(spec, spectator.UserID)
-	}
-
-	gameStats := types.GameStatus{
-		IsTimeRunning: i.timer.IsRunning,
-		IsVoting:      i.isVoting,
-		IsRoundEnd:    i.isRoundEnd,
-		RoundLeft:     i.roundLeft,
-		PlayerStats:   copiedStats,
-		Spectator:     spec,
-	}
-
-	return gameStats
 }
 
 // helper func

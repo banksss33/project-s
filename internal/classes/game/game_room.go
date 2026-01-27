@@ -11,8 +11,9 @@ type GameRoom struct {
 	PlayerList     map[string]*Player // Key: userID from Discord, Value: *Player
 	Broadcast      chan types.ServerResponse
 	ActionReceiver chan types.PlayerAction
-	gameClose      chan bool
+	GameClose      chan bool
 	mu             sync.Mutex
+	countdown      chan int
 }
 
 // create new game room Constructor
@@ -22,7 +23,8 @@ func NewGameRoom(gameClose chan bool, host *Player) *GameRoom {
 		state:          "LOBBY_STATE",
 		Broadcast:      make(chan types.ServerResponse, 5),
 		ActionReceiver: make(chan types.PlayerAction, 5),
-		gameClose:      gameClose,
+		GameClose:      gameClose,
+		countdown:      make(chan int),
 	}
 
 	go newRoom.broadcastInit()
@@ -40,12 +42,22 @@ func (gr *GameRoom) broadcastInit() {
 }
 
 func (gr *GameRoom) actionProcessorInit() {
-	countdown := make(chan int)
+	// Mock Data supposed to be from database or config
+	var mockLocations = map[string][]string{
+		"Airplane":      {"Pilot", "Co-pilot", "Flight Attendant", "Passenger", "Air Marshal", "Mechanic"},
+		"Hospital":      {"Surgeon", "Nurse", "Patient", "Therapist", "Security Guard", "Doctor"},
+		"Bank":          {"Bank Manager", "Teller", "Robber", "Customer", "Armored Car Driver", "Consultant"},
+		"Pirate Ship":   {"Captain", "Cabin Boy", "Pirate", "Gunner", "Bound Prisoner", "Cook"},
+		"Space Station": {"Astronaut", "Scientist", "Commander", "Engineer", "Alien", "Space Tourist"},
+	}
+
 	var lobby = &LobbyState{}
+	lobby.setting.Locations = mockLocations
 	var inGame = &InGameState{}
 
 	lobbyAction := LobbyActionDispatcher()
 	inGameAction := InGameActionDispatcher()
+	timeUp := make(chan bool)
 	for {
 		select {
 		case action, ok := <-gr.ActionReceiver:
@@ -53,12 +65,28 @@ func (gr *GameRoom) actionProcessorInit() {
 				break
 			}
 
+			if action.ActionName == "NEW_ROUND" {
+				//Broadcast to all player about everyone roles before start new Round
+
+				gr.state = "IN_GAME_STATE"
+				inGame.NewRound()
+				inGame.StartNewTimer(gr.countdown, timeUp)
+				broadcastPlayerRolesAndLocation(inGame)
+				broadcastGameState(gr, inGame)
+			}
+
+			if gr.state == "CLEARING_OLD_ACTION" {
+				continue
+			}
+
 			if action.ActionName == "START_GAME" && gr.state == "LOBBY_STATE" && gr.PlayerList[action.UserID] == lobby.Host {
 				gr.state = "IN_GAME_STATE"
 				players := lobby.GetPlayers()
 				spectators := lobby.GetSpectators()
-				inGame.Init(lobby.setting, players, spectators)
-				inGame.StartTimer(countdown)
+				inGame.StartNewGame(lobby.setting, players, spectators)
+				inGame.StartNewTimer(gr.countdown, timeUp)
+				broadcastPlayerRolesAndLocation(inGame)
+				broadcastGameState(gr, inGame)
 			}
 
 			switch gr.state {
@@ -68,8 +96,15 @@ func (gr *GameRoom) actionProcessorInit() {
 			case "IN_GAME_STATE":
 				useInGameAction := inGameAction[action.ActionName]
 				useInGameAction(gr, inGame, action)
+				if inGame.isRoundEnd {
+					gr.state = "CLEARING_OLD_ACTION"
+					inGame.killTimer <- true
+					gr.ActionReceiver <- types.PlayerAction{
+						ActionName: "NEW_ROUND",
+					}
+				}
 			}
-		case cd := <-countdown:
+		case cd := <-gr.countdown:
 			//broadcast time
 			timerUpdate := types.UpdateTimerResponse{
 				TimerNow: cd,
@@ -82,6 +117,11 @@ func (gr *GameRoom) actionProcessorInit() {
 			}
 
 			gr.Broadcast <- serverResponse
+		case <-timeUp:
+			gr.state = "CLEARING_OLD_ACTION"
+			gr.ActionReceiver <- types.PlayerAction{
+				ActionName: "NEW_ROUND",
+			}
 		}
 	}
 }
