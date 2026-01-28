@@ -5,10 +5,9 @@ import (
 	"project-s/internal/types"
 )
 
-func LobbyActionDispatcher() map[string]func(*GameRoom, *LobbyState, types.PlayerAction) {
-	lobbyAction := make(map[string]func(*GameRoom, *LobbyState, types.PlayerAction))
+func LobbyActionDispatcher() map[string]func(*GameRoom, *LobbyState, types.Action) {
+	lobbyAction := make(map[string]func(*GameRoom, *LobbyState, types.Action))
 
-	lobbyAction["GAME_CREATED"] = lobbyCreated
 	lobbyAction["PLAYER_JOIN"] = joinGame
 	lobbyAction["SPECTATOR_JOIN"] = joinSpectator
 	lobbyAction["PLAYER_LEFT"] = leaveGame
@@ -17,13 +16,8 @@ func LobbyActionDispatcher() map[string]func(*GameRoom, *LobbyState, types.Playe
 	return lobbyAction
 }
 
-func lobbyCreated(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
-	host := room.PlayerList[payload.UserID]
-	lobby.LobbyStateInit(host)
-}
-
-func joinGame(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
-	player := room.PlayerList[payload.UserID]
+func joinGame(room *GameRoom, lobby *LobbyState, payload types.Action) {
+	player := room.PlayerList[payload.CallerID]
 	if player == nil {
 		return
 	}
@@ -33,24 +27,29 @@ func joinGame(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
 	sendGameSettings(player, lobby)
 }
 
-func joinSpectator(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
-	player := room.PlayerList[payload.UserID]
-	if player == nil {
+func joinSpectator(room *GameRoom, lobby *LobbyState, payload types.Action) {
+	player, exists := room.GetPlayerByID(payload.CallerID)
+	if !exists {
 		return
 	}
+
+	if !lobby.PlayerList[player] { //case when player are already spectator
+		return
+	}
+
 	lobby.SpectatorJoin(player)
 
 	broadcastLobbyState(room, lobby)
 }
 
-func leaveGame(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
-	player, exists := room.PlayerList[payload.UserID]
+func leaveGame(room *GameRoom, lobby *LobbyState, payload types.Action) {
+	player, exists := room.PlayerList[payload.CallerID]
 	if !exists {
 		return
 	}
 
 	lobby.PlayerLeft(player)
-	delete(room.PlayerList, player.UserID)
+	delete(room.PlayerList, payload.CallerID)
 
 	if len(room.PlayerList) == 0 {
 		room.GameClose <- true
@@ -60,8 +59,8 @@ func leaveGame(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
 	broadcastLobbyState(room, lobby)
 }
 
-func editGameSetting(room *GameRoom, lobby *LobbyState, payload types.PlayerAction) {
-	player := room.PlayerList[payload.UserID]
+func editGameSetting(room *GameRoom, lobby *LobbyState, payload types.Action) {
+	player := room.PlayerList[payload.CallerID]
 	if player == nil || lobby.Host != player {
 		return
 	}
@@ -87,20 +86,27 @@ func editGameSetting(room *GameRoom, lobby *LobbyState, payload types.PlayerActi
 	room.Broadcast <- response
 }
 
+// #region helper func
 // Helper to broadcast UPDATE_LOBBY_PLAYER_LIST
 func broadcastLobbyState(room *GameRoom, lobby *LobbyState) {
 	responsePayload := types.UpdateLobbyPlayerListResponse{
-		Host:       lobby.Host.UserID,
+		Host:       "",
 		Players:    make([]string, 0),
 		Spectators: make([]string, 0),
 	}
+	if lobby.Host != nil {
+		responsePayload.Host = lobby.Host.UserID
+	}
 
+	//if isPlayer = true it's player if not that player is spectator
 	for player, isPlayer := range lobby.PlayerList {
 		if isPlayer {
 			responsePayload.Players = append(responsePayload.Players, player.UserID)
-		} else {
-			responsePayload.Spectators = append(responsePayload.Spectators, player.UserID)
+			continue
 		}
+
+		responsePayload.Spectators = append(responsePayload.Spectators, player.UserID)
+
 	}
 
 	jsonResponsePayload, err := json.Marshal(responsePayload)

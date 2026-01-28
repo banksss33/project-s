@@ -10,12 +10,16 @@ type LobbyState struct {
 	setting    types.GameSetting
 }
 
-func (i *LobbyState) LobbyStateInit(host *Player) {
-	i.Host = host
-	i.PlayerList = make(map[*Player]bool)
-	i.setting.Round = 7
-	i.setting.Spies = 1
-	i.setting.Timer = 420
+func NewLobbyState() *LobbyState {
+	return &LobbyState{
+		PlayerList: make(map[*Player]bool),
+		setting: types.GameSetting{
+			Round:     7,
+			Spies:     1,
+			Timer:     420,
+			Locations: make(map[string][]string),
+		},
+	}
 }
 
 func (l *LobbyState) PlayerJoin(player *Player) {
@@ -26,9 +30,17 @@ func (l *LobbyState) PlayerJoin(player *Player) {
 }
 
 func (l *LobbyState) SpectatorJoin(player *Player) {
+	if !l.PlayerList[player] { //case when player are already spectator
+		return
+	}
+
 	if player == l.Host {
-		for randPlayer := range l.PlayerList {
-			if randPlayer != player {
+		for randPlayer, isPlayer := range l.PlayerList {
+			if !isPlayer {
+				continue
+			}
+
+			if randPlayer != l.Host {
 				l.Host = randPlayer
 				break
 			}
@@ -36,13 +48,17 @@ func (l *LobbyState) SpectatorJoin(player *Player) {
 	}
 
 	l.PlayerList[player] = false
-	for _, isPlayer := range l.PlayerList {
-		if isPlayer {
-			break
-		}
 
-		l.Host = nil
+	//if all player are spectator then Host = nil
+	for _, isPlayer := range l.PlayerList {
+		// if found player in lobby function end
+		if isPlayer {
+			return
+		}
 	}
+
+	//if all player are spectator then host is nil
+	l.Host = nil
 }
 
 func (l *LobbyState) PlayerLeft(player *Player) {
@@ -65,7 +81,7 @@ func (l *LobbyState) EditSetting(newSetting types.GameSetting) {
 }
 
 func (l *LobbyState) GetPlayers() []*Player {
-	players := make([]*Player, 0)
+	var players []*Player
 	for player, isPlayer := range l.PlayerList {
 		if isPlayer {
 			players = append(players, player)

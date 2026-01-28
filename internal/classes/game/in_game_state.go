@@ -18,27 +18,37 @@ type InGameState struct {
 	voteLeft      int
 	accusedPlayer *Player
 
-	playerStatus map[*Player]*types.PlayerStatus //key: player | value: player's roles
-	spectator    []*Player
-	setting      types.GameSetting
+	playerStatus        map[*Player]*types.PlayerStatus //key: player | value: player's roles
+	spectator           map[*Player]bool
+	disconnectedPlayers map[*Player]bool
+	setting             types.GameSetting
+}
+
+func NewInGameState() *InGameState {
+	return &InGameState{
+		spectator:           make(map[*Player]bool),
+		killTimer:           make(chan bool),
+		playerStatus:        make(map[*Player]*types.PlayerStatus),
+		disconnectedPlayers: make(map[*Player]bool),
+		isVoting:            false,
+		isRoundEnd:          false,
+		accusedPlayer:       nil,
+		timer: types.GameTimer{
+			Tick:      time.NewTicker(time.Second),
+			IsRunning: false,
+			Countdown: 0,
+		},
+	}
 }
 
 func (i *InGameState) StartNewGame(gameSetting types.GameSetting, playerList []*Player, spectatorList []*Player) {
 	i.setting = gameSetting
-	i.spectator = slices.Clone(spectatorList)
+	for _, s := range spectatorList {
+		i.spectator[s] = true
+	}
 	i.roundLeft = i.setting.Round
 
-	i.killTimer = make(chan bool)
-	i.timer = types.GameTimer{
-		Tick:      time.NewTicker(time.Second),
-		IsRunning: false,
-		Countdown: i.setting.Timer,
-	}
-
-	i.isVoting = false
-	i.isRoundEnd = false
-	i.accusedPlayer = nil
-	i.playerStatus = make(map[*Player]*types.PlayerStatus)
+	i.timer.Countdown = i.setting.Timer
 
 	//random location
 	randomLocation := randomkeyFromMap[string, []string](i.setting.Locations, 1)[0]
@@ -100,7 +110,7 @@ func (i *InGameState) NewRound() {
 			continue
 		}
 
-		i.playerStatus[player].Roles = roles[index-i.setting.Spies]
+		i.playerStatus[player].Roles = roles[(index-i.setting.Spies)%len(roles)]
 		i.playerStatus[player].AlreadyVote = false
 
 	}
@@ -156,13 +166,46 @@ func (i *InGameState) PauseTimer() {
 }
 
 func (i *InGameState) OnPlayerJoin(player *Player) {
-	//check if player exists in playerRoles if not then it mean recently join = spectator
-	if _, exists := i.playerStatus[player]; exists {
-		i.spectator = append(i.spectator, player)
+	// If player is not in playerStatus, they are a new join -> spectator
+	if _, exists := i.disconnectedPlayers[player]; !exists {
+		i.spectator[player] = true
+	}
+
+	delete(i.disconnectedPlayers, player)
+
+	// Resume timer if no more disconnected players
+	if len(i.disconnectedPlayers) < 1 {
+		i.ResumeTimer()
 	}
 }
 
-func (i *InGameState) Accruse(fromPlayer *Player, targetPlayer *Player) {
+func (i *InGameState) OnPlayerLeave(player *Player) (shouldCloseRoom bool) {
+	if _, exists := i.spectator[player]; exists {
+		delete(i.spectator, player)
+		return false
+	}
+
+	if _, exists := i.playerStatus[player]; exists {
+		i.disconnectedPlayers[player] = true
+		i.PauseTimer()
+
+		if i.AllPlayersDisconnected() {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (i *InGameState) AllPlayersDisconnected() bool {
+	if len(i.disconnectedPlayers) == len(i.playerStatus) {
+		return true
+	}
+
+	return false
+}
+
+func (i *InGameState) Accuse(fromPlayer *Player, targetPlayer *Player) {
 	_, accruserExists := i.playerStatus[fromPlayer]
 	_, accrusedExists := i.playerStatus[targetPlayer]
 	if !accruserExists || !accrusedExists {

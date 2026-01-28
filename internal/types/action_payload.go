@@ -2,8 +2,8 @@ package types
 
 import "encoding/json"
 
-type PlayerAction struct {
-	UserID     string          `json:"user_id"`
+type Action struct {
+	CallerID   string          `json:"caller_id"`
 	ActionName string          `json:"action_name"`
 	Payload    json.RawMessage `json:"payload"`
 }
